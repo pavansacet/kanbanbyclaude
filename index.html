@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DealFlow — CRM Kanban</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/canvas-confetti/1.9.2/confetti.browser.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0b0f;
+    --surface: #111318;
+    --surface2: #181b23;
+    --border: rgba(255,255,255,0.07);
+    --border-bright: rgba(255,255,255,0.14);
+    --text: #e8eaf0;
+    --text-muted: #6b7280;
+    --text-dim: #9ca3af;
+    --accent-new: #3b82f6;
+    --accent-new-glow: rgba(59,130,246,0.3);
+    --accent-progress: #a78bfa;
+    --accent-progress-glow: rgba(167,139,250,0.3);
+    --accent-success: #10b981;
+    --accent-success-glow: rgba(16,185,129,0.35);
+    --accent-failure: #ef4444;
+    --accent-failure-glow: rgba(239,68,68,0.35);
+    --card-bg: #13161e;
+    --card-hover: #1a1e28;
+    --radius: 14px;
+    --radius-sm: 8px;
+    --radius-card: 12px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: auto;
+  }
+
+  /* Ambient background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 60% 40% at 15% 10%, rgba(59,130,246,0.06) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 30% at 85% 5%, rgba(167,139,250,0.06) 0%, transparent 50%),
+      radial-gradient(ellipse 40% 30% at 50% 100%, rgba(16,185,129,0.04) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app { position: relative; z-index: 1; padding: 28px 32px 48px; min-height: 100vh; }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 36px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 38px; height: 38px;
+    background: linear-gradient(135deg, #3b82f6, #a78bfa);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    box-shadow: 0 0 24px rgba(99,102,241,0.4);
+  }
+
+  .logo-text {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 22px;
+    letter-spacing: -0.5px;
+    background: linear-gradient(90deg, #e8eaf0 0%, #9ca3af 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .logo-badge {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 3px 8px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    margin-left: 4px;
+  }
+
+  .header-stats {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+  }
+
+  .stat-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 40px;
+    padding: 7px 16px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+
+  .stat-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+  }
+
+  .stat-num {
+    font-weight: 600;
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+  }
+
+  .add-deal-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, #3b82f6, #6366f1);
+    border: none;
+    border-radius: 40px;
+    color: #fff;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 10px 22px;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 20px rgba(99,102,241,0.35);
+    letter-spacing: 0.01em;
+  }
+
+  .add-deal-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 28px rgba(99,102,241,0.5);
+  }
+
+  .add-deal-btn:active { transform: translateY(0); }
+
+  /* Board */
+  .board {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    min-width: 900px;
+  }
+
+  /* Column */
+  .column {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+    min-height: 600px;
+    overflow: hidden;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    position: relative;
+  }
+
+  .column::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    border-radius: var(--radius) var(--radius) 0 0;
+    opacity: 0.8;
+  }
+
+  .col-new::before    { background: linear-gradient(90deg, var(--accent-new), transparent); }
+  .col-progress::before { background: linear-gradient(90deg, var(--accent-progress), transparent); }
+  .col-success::before  { background: linear-gradient(90deg, var(--accent-success), transparent); }
+  .col-failure::before  { background: linear-gradient(90deg, var(--accent-failure), transparent); }
+
+  .column.drag-over {
+    border-color: var(--border-bright);
+    background: var(--surface2);
+  }
+
+  .col-new.drag-over    { box-shadow: 0 0 30px var(--accent-new-glow); border-color: rgba(59,130,246,0.3); }
+  .col-progress.drag-over { box-shadow: 0 0 30px var(--accent-progress-glow); border-color: rgba(167,139,250,0.3); }
+  .col-success.drag-over  { box-shadow: 0 0 30px var(--accent-success-glow); border-color: rgba(16,185,129,0.3); }
+  .col-failure.drag-over  { box-shadow: 0 0 30px var(--accent-failure-glow); border-color: rgba(239,68,68,0.3); }
+
+  /* Column Header */
+  .col-header {
+    padding: 18px 18px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .col-title-wrap { display: flex; align-items: center; gap: 10px; }
+
+  .col-icon {
+    width: 30px; height: 30px;
+    border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+
+  .col-new .col-icon    { background: rgba(59,130,246,0.15); }
+  .col-progress .col-icon { background: rgba(167,139,250,0.15); }
+  .col-success .col-icon  { background: rgba(16,185,129,0.15); }
+  .col-failure .col-icon  { background: rgba(239,68,68,0.15); }
+
+  .col-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.01em;
+  }
+
+  .col-count {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-family: 'Syne', sans-serif;
+  }
+
+  .col-new .col-count    { background: rgba(59,130,246,0.15); color: #93c5fd; }
+  .col-progress .col-count { background: rgba(167,139,250,0.15); color: #c4b5fd; }
+  .col-success .col-count  { background: rgba(16,185,129,0.15); color: #6ee7b7; }
+  .col-failure .col-count  { background: rgba(239,68,68,0.15); color: #fca5a5; }
+
+  /* Cards area */
+  .cards-area {
+    flex: 1;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+  }
+
+  /* Empty state */
+  .empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 13px;
+    gap: 8px;
+    padding: 20px;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  .empty-state-icon { font-size: 28px; opacity: 0.4; }
+
+  /* Deal Card */
+  .deal-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    padding: 14px 16px;
+    cursor: grab;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+    animation: cardIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(-10px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .deal-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    border-radius: 3px 0 0 3px;
+  }
+
+  .col-new    .deal-card::before { background: var(--accent-new); }
+  .col-progress .deal-card::before { background: var(--accent-progress); }
+  .col-success  .deal-card::before { background: var(--accent-success); }
+  .col-failure  .deal-card::before { background: var(--accent-failure); }
+
+  .deal-card:hover {
+    background: var(--card-hover);
+    border-color: var(--border-bright);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  }
+
+  .deal-card.dragging {
+    opacity: 0.4;
+    transform: rotate(1.5deg) scale(0.98);
+    cursor: grabbing;
+  }
+
+  .deal-card.shake {
+    animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+  }
+
+  @keyframes shake {
+    10%, 90% { transform: translateX(-2px); }
+    20%, 80% { transform: translateX(4px); }
+    30%, 50%, 70% { transform: translateX(-6px); }
+    40%, 60% { transform: translateX(6px); }
+  }
+
+  .card-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text);
+    margin-bottom: 6px;
+    padding-left: 6px;
+    line-height: 1.3;
+    word-break: break-word;
+  }
+
+  .card-desc {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    padding-left: 6px;
+    word-break: break-word;
+    margin-bottom: 12px;
+  }
+
+  .card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-left: 6px;
+  }
+
+  .card-date {
+    font-size: 11px;
+    color: var(--text-muted);
+    opacity: 0.7;
+  }
+
+  .card-actions { display: flex; gap: 4px; }
+
+  .card-btn {
+    width: 28px; height: 28px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    transition: all 0.15s;
+  }
+
+  .card-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--border-bright); }
+  .card-btn.del:hover { background: rgba(239,68,68,0.12); color: #f87171; border-color: rgba(239,68,68,0.3); }
+
+  /* Drop placeholder */
+  .drop-placeholder {
+    height: 70px;
+    border: 2px dashed var(--border-bright);
+    border-radius: var(--radius-card);
+    background: rgba(255,255,255,0.02);
+    pointer-events: none;
+  }
+
+  /* Failure glow overlay */
+  .col-failure.failure-flash {
+    animation: failureFlash 0.6s ease;
+  }
+
+  @keyframes failureFlash {
+    0%   { box-shadow: none; }
+    30%  { box-shadow: 0 0 60px rgba(239,68,68,0.7), inset 0 0 40px rgba(239,68,68,0.15); }
+    100% { box-shadow: none; }
+  }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(6px);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0;
+    animation: fadeIn 0.2s forwards;
+  }
+
+  @keyframes fadeIn { to { opacity: 1; } }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border-bright);
+    border-radius: var(--radius);
+    width: 100%;
+    max-width: 440px;
+    padding: 30px;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.6), 0 0 40px rgba(99,102,241,0.1);
+    animation: slideUp 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+
+  @keyframes slideUp {
+    from { transform: translateY(20px) scale(0.97); }
+    to   { transform: translateY(0) scale(1); }
+  }
+
+  .modal-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+    margin-bottom: 6px;
+  }
+
+  .modal-sub {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+  }
+
+  .form-group { margin-bottom: 16px; }
+
+  .form-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 7px;
+  }
+
+  .form-input, .form-textarea, .form-select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    padding: 10px 14px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    outline: none;
+  }
+
+  .form-input:focus, .form-textarea:focus, .form-select:focus {
+    border-color: rgba(99,102,241,0.5);
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+  }
+
+  .form-textarea { resize: vertical; min-height: 80px; }
+
+  .form-select option { background: var(--surface2); }
+
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 24px;
+  }
+
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    padding: 9px 18px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .btn-ghost:hover { border-color: var(--border-bright); color: var(--text); }
+
+  .btn-primary {
+    background: linear-gradient(135deg, #3b82f6, #6366f1);
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 9px 22px;
+    cursor: pointer;
+    transition: all 0.15s;
+    box-shadow: 0 4px 14px rgba(99,102,241,0.35);
+  }
+
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99,102,241,0.5); }
+
+  /* Success banner */
+  .toast {
+    position: fixed;
+    bottom: 28px; left: 50%;
+    transform: translateX(-50%) translateY(60px);
+    background: var(--surface);
+    border: 1px solid rgba(16,185,129,0.3);
+    border-radius: 40px;
+    padding: 11px 22px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #6ee7b7;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.5), 0 0 20px rgba(16,185,129,0.2);
+    z-index: 200;
+    display: flex; align-items: center; gap: 10px;
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+  /* Scrollbar */
+  .cards-area::-webkit-scrollbar { width: 4px; }
+  .cards-area::-webkit-scrollbar-track { background: transparent; }
+  .cards-area::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo">
+      <div class="logo-icon">💎</div>
+      <span class="logo-text">DealFlow</span>
+      <span class="logo-badge">CRM</span>
+    </div>
+    <div class="header-stats">
+      <div class="stat-pill">
+        <div class="stat-dot" style="background:#3b82f6"></div>
+        New: <span class="stat-num" id="count-new">0</span>
+      </div>
+      <div class="stat-pill">
+        <div class="stat-dot" style="background:#a78bfa"></div>
+        In Progress: <span class="stat-num" id="count-progress">0</span>
+      </div>
+      <div class="stat-pill">
+        <div class="stat-dot" style="background:#10b981"></div>
+        Success: <span class="stat-num" id="count-success">0</span>
+      </div>
+      <div class="stat-pill">
+        <div class="stat-dot" style="background:#ef4444"></div>
+        Failure: <span class="stat-num" id="count-failure">0</span>
+      </div>
+      <button class="add-deal-btn" onclick="openAddModal()">
+        <span>＋</span> Add Deal
+      </button>
+    </div>
+  </header>
+
+  <div class="board">
+    <div class="column col-new" id="col-new" data-col="new"
+         ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'new')">
+      <div class="col-header">
+        <div class="col-title-wrap">
+          <div class="col-icon">🔵</div>
+          <span class="col-title">New</span>
+        </div>
+        <span class="col-count" id="badge-new">0</span>
+      </div>
+      <div class="cards-area" id="cards-new"></div>
+    </div>
+
+    <div class="column col-progress" id="col-progress" data-col="progress"
+         ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'progress')">
+      <div class="col-header">
+        <div class="col-title-wrap">
+          <div class="col-icon">🟣</div>
+          <span class="col-title">In Progress</span>
+        </div>
+        <span class="col-count" id="badge-progress">0</span>
+      </div>
+      <div class="cards-area" id="cards-progress"></div>
+    </div>
+
+    <div class="column col-success" id="col-success" data-col="success"
+         ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'success')">
+      <div class="col-header">
+        <div class="col-title-wrap">
+          <div class="col-icon">🟢</div>
+          <span class="col-title">Success</span>
+        </div>
+        <span class="col-count" id="badge-success">0</span>
+      </div>
+      <div class="cards-area" id="cards-success"></div>
+    </div>
+
+    <div class="column col-failure" id="col-failure" data-col="failure"
+         ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'failure')">
+      <div class="col-header">
+        <div class="col-title-wrap">
+          <div class="col-icon">🔴</div>
+          <span class="col-title">Failure</span>
+        </div>
+        <span class="col-count" id="badge-failure">0</span>
+      </div>
+      <div class="cards-area" id="cards-failure"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <span id="toast-icon">🎉</span>
+  <span id="toast-msg"></span>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal-overlay" style="display:none" onclick="closeModalIfBg(event)">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">New Deal</div>
+    <div class="modal-sub" id="modal-sub">Fill in the deal details below</div>
+    <div class="form-group">
+      <label class="form-label">Deal Title *</label>
+      <input class="form-input" id="field-title" type="text" placeholder="e.g. Enterprise SaaS Package" maxlength="80">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Description</label>
+      <textarea class="form-textarea" id="field-desc" placeholder="Add notes, contact info, deal size…"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Column</label>
+      <select class="form-select" id="field-col">
+        <option value="new">New</option>
+        <option value="progress">In Progress</option>
+        <option value="success">Success</option>
+        <option value="failure">Failure</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" id="modal-save-btn" onclick="saveModal()">Add Deal</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Audio ────────────────────────────────────────────────────────────────────
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let ctx;
+
+function getCtx() {
+  if (!ctx) ctx = new AudioCtx();
+  return ctx;
+}
+
+function playTone(freq, type, duration, vol = 0.18, decay = 0.4) {
+  try {
+    const ac = getCtx();
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.connect(gain); gain.connect(ac.destination);
+    osc.type = type; osc.frequency.value = freq;
+    gain.gain.setValueAtTime(vol, ac.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + duration);
+    osc.start(); osc.stop(ac.currentTime + duration + decay);
+  } catch(e) {}
+}
+
+function soundAdd() {
+  playTone(440, 'sine', 0.12, 0.15);
+  setTimeout(() => playTone(554, 'sine', 0.12, 0.12), 90);
+  setTimeout(() => playTone(659, 'sine', 0.15, 0.1), 180);
+}
+
+function soundDelete() {
+  playTone(300, 'sawtooth', 0.1, 0.1);
+  setTimeout(() => playTone(220, 'sawtooth', 0.15, 0.08), 80);
+}
+
+function soundSuccess() {
+  [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => playTone(f, 'sine', 0.2, 0.15), i * 90));
+}
+
+function soundFailure() {
+  [300, 250, 200].forEach((f, i) => setTimeout(() => playTone(f, 'sawtooth', 0.15, 0.18), i * 80));
+}
+
+// ─── Data ─────────────────────────────────────────────────────────────────────
+const STORAGE_KEY = 'dealflow_deals_v2';
+let deals = [];
+let dragId = null;
+let editId = null;
+let placeholder = null;
+
+function saveDeals() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(deals));
+}
+
+function loadDeals() {
+  try {
+    const d = localStorage.getItem(STORAGE_KEY);
+    deals = d ? JSON.parse(d) : [];
+  } catch(e) { deals = []; }
+  if (!deals.length) {
+    deals = [
+      { id: uid(), title: 'Acme Corp Renewal', desc: 'Annual contract renewal, $40k ARR. Contact: Jane D.', col: 'new', date: today() },
+      { id: uid(), title: 'Startup Pilot', desc: '3-month pilot for Series A startup. 12 seats.', col: 'progress', date: today() },
+      { id: uid(), title: 'GovTech RFP', desc: 'Government procurement — closed won! 🚀', col: 'success', date: today() },
+      { id: uid(), title: 'SMB Prospect', desc: 'Budget objection, deal fell through after 8-week cycle.', col: 'failure', date: today() },
+    ];
+    saveDeals();
+  }
+}
+
+function uid() {
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+function today() {
+  return new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// ─── Render ───────────────────────────────────────────────────────────────────
+function render() {
+  const cols = ['new', 'progress', 'success', 'failure'];
+  cols.forEach(col => {
+    const area = document.getElementById('cards-' + col);
+    const colDeals = deals.filter(d => d.col === col);
+    area.innerHTML = '';
+
+    if (!colDeals.length) {
+      area.innerHTML = `<div class="empty-state"><div class="empty-state-icon">○</div><span>Drop deals here</span></div>`;
+    } else {
+      colDeals.forEach(deal => {
+        const card = document.createElement('div');
+        card.className = 'deal-card';
+        card.id = 'card-' + deal.id;
+        card.draggable = true;
+        card.innerHTML = `
+          <div class="card-title">${escHtml(deal.title)}</div>
+          ${deal.desc ? `<div class="card-desc">${escHtml(deal.desc)}</div>` : ''}
+          <div class="card-footer">
+            <span class="card-date">${deal.date}</span>
+            <div class="card-actions">
+              <button class="card-btn" onclick="openEditModal('${deal.id}')" title="Edit">✎</button>
+              <button class="card-btn del" onclick="deleteDeal('${deal.id}')" title="Delete">✕</button>
+            </div>
+          </div>`;
+        card.addEventListener('dragstart', e => onDragStart(e, deal.id));
+        card.addEventListener('dragend', onDragEnd);
+        area.appendChild(card);
+      });
+    }
+
+    const count = colDeals.length;
+    document.getElementById('badge-' + col).textContent = count;
+    document.getElementById('count-' + col).textContent = count;
+  });
+}
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ─── Drag & Drop ──────────────────────────────────────────────────────────────
+function onDragStart(e, id) {
+  dragId = id;
+  setTimeout(() => {
+    const el = document.getElementById('card-' + id);
+    if (el) el.classList.add('dragging');
+  }, 0);
+  e.dataTransfer.effectAllowed = 'move';
+}
+
+function onDragEnd() {
+  if (dragId) {
+    const el = document.getElementById('card-' + dragId);
+    if (el) el.classList.remove('dragging');
+  }
+  removePlaceholder();
+  document.querySelectorAll('.column').forEach(c => c.classList.remove('drag-over'));
+}
+
+function onDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const col = e.currentTarget;
+  col.classList.add('drag-over');
+
+  // Placeholder
+  if (!placeholder) {
+    placeholder = document.createElement('div');
+    placeholder.className = 'drop-placeholder';
+  }
+  const area = col.querySelector('.cards-area');
+  const afterEl = getDragAfterElement(area, e.clientY);
+  if (afterEl) { area.insertBefore(placeholder, afterEl); }
+  else { area.appendChild(placeholder); }
+}
+
+function onDragLeave(e) {
+  if (!e.currentTarget.contains(e.relatedTarget)) {
+    e.currentTarget.classList.remove('drag-over');
+  }
+}
+
+function onDrop(e, colName) {
+  e.preventDefault();
+  document.querySelectorAll('.column').forEach(c => c.classList.remove('drag-over'));
+  removePlaceholder();
+  if (!dragId) return;
+
+  const deal = deals.find(d => d.id === dragId);
+  if (!deal) return;
+
+  const prevCol = deal.col;
+  deal.col = colName;
+  deal.date = today();
+  saveDeals();
+  render();
+  dragId = null;
+
+  if (colName === 'success' && prevCol !== 'success') {
+    triggerSuccess();
+  } else if (colName === 'failure' && prevCol !== 'failure') {
+    triggerFailure();
+  }
+}
+
+function getDragAfterElement(container, y) {
+  const children = [...container.querySelectorAll('.deal-card:not(.dragging)')];
+  return children.reduce((closest, child) => {
+    const box = child.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (offset < 0 && offset > closest.offset) return { offset, element: child };
+    return closest;
+  }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+function removePlaceholder() {
+  if (placeholder && placeholder.parentNode) {
+    placeholder.parentNode.removeChild(placeholder);
+  }
+  placeholder = null;
+}
+
+// ─── Reactions ────────────────────────────────────────────────────────────────
+function triggerSuccess() {
+  soundSuccess();
+  confetti({
+    particleCount: 160,
+    spread: 80,
+    origin: { y: 0.5, x: 0.75 },
+    colors: ['#10b981','#6ee7b7','#34d399','#fbbf24','#f9fafb'],
+    scalar: 1.1,
+  });
+  setTimeout(() => confetti({ particleCount: 60, spread: 120, origin: { y: 0.4, x: 0.7 }, scalar: 0.9 }), 350);
+  showToast('🎉', 'Deal moved to Success! Congrats!');
+}
+
+function triggerFailure() {
+  soundFailure();
+  const col = document.getElementById('col-failure');
+  col.classList.add('failure-flash');
+  setTimeout(() => col.classList.remove('failure-flash'), 650);
+
+  // Shake all failure cards
+  document.querySelectorAll('#cards-failure .deal-card').forEach(c => {
+    c.classList.remove('shake');
+    void c.offsetWidth;
+    c.classList.add('shake');
+  });
+  showToast('😞', 'Deal marked as Failure. Better luck next time!');
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(icon, msg) {
+  const t = document.getElementById('toast');
+  document.getElementById('toast-icon').textContent = icon;
+  document.getElementById('toast-msg').textContent = msg;
+
+  // Adjust border for failure
+  if (icon === '😞') {
+    t.style.borderColor = 'rgba(239,68,68,0.3)';
+    t.style.color = '#fca5a5';
+    t.style.boxShadow = '0 8px 28px rgba(0,0,0,0.5), 0 0 20px rgba(239,68,68,0.2)';
+  } else {
+    t.style.borderColor = 'rgba(16,185,129,0.3)';
+    t.style.color = '#6ee7b7';
+    t.style.boxShadow = '0 8px 28px rgba(0,0,0,0.5), 0 0 20px rgba(16,185,129,0.2)';
+  }
+
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+// ─── Modal ────────────────────────────────────────────────────────────────────
+function openAddModal() {
+  editId = null;
+  document.getElementById('modal-title').textContent = 'New Deal';
+  document.getElementById('modal-sub').textContent = 'Fill in the deal details below';
+  document.getElementById('modal-save-btn').textContent = 'Add Deal';
+  document.getElementById('field-title').value = '';
+  document.getElementById('field-desc').value = '';
+  document.getElementById('field-col').value = 'new';
+  showModal();
+}
+
+function openEditModal(id) {
+  editId = id;
+  const deal = deals.find(d => d.id === id);
+  if (!deal) return;
+  document.getElementById('modal-title').textContent = 'Edit Deal';
+  document.getElementById('modal-sub').textContent = 'Update the deal details';
+  document.getElementById('modal-save-btn').textContent = 'Save Changes';
+  document.getElementById('field-title').value = deal.title;
+  document.getElementById('field-desc').value = deal.desc || '';
+  document.getElementById('field-col').value = deal.col;
+  showModal();
+}
+
+function showModal() {
+  const overlay = document.getElementById('modal-overlay');
+  overlay.style.display = 'flex';
+  // Re-trigger animation
+  overlay.querySelector('.modal').style.animation = 'none';
+  void overlay.querySelector('.modal').offsetWidth;
+  overlay.querySelector('.modal').style.animation = '';
+  setTimeout(() => document.getElementById('field-title').focus(), 100);
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').style.display = 'none';
+  editId = null;
+}
+
+function closeModalIfBg(e) {
+  if (e.target === document.getElementById('modal-overlay')) closeModal();
+}
+
+function saveModal() {
+  const title = document.getElementById('field-title').value.trim();
+  if (!title) {
+    document.getElementById('field-title').focus();
+    document.getElementById('field-title').style.borderColor = 'rgba(239,68,68,0.6)';
+    setTimeout(() => document.getElementById('field-title').style.borderColor = '', 1000);
+    return;
+  }
+  const desc = document.getElementById('field-desc').value.trim();
+  const col = document.getElementById('field-col').value;
+
+  if (editId) {
+    const deal = deals.find(d => d.id === editId);
+    if (deal) { deal.title = title; deal.desc = desc; deal.col = col; }
+  } else {
+    deals.unshift({ id: uid(), title, desc, col, date: today() });
+    soundAdd();
+  }
+
+  saveDeals();
+  render();
+  closeModal();
+}
+
+function deleteDeal(id) {
+  deals = deals.filter(d => d.id !== id);
+  saveDeals();
+  soundDelete();
+  render();
+}
+
+// ─── Keyboard ─────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); openAddModal(); }
+});
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+loadDeals();
+render();
+</script>
+</body>
+</html>
